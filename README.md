@@ -1,6 +1,7 @@
 # clj-tree-layout
 
 A library for laying out tree nodes in 2D space for Clojure and ClojureScript.
+
 It features tidy tree representations as per [Tilford and Reingold](http://hci.stanford.edu/cs448b/f09/lectures/CS448B-20091021-GraphsAndTrees.pdf)
 
 This library doesn't contain any functionality to draw a tree on any canvas, just 
@@ -20,13 +21,13 @@ Given a tree structure
 ;; For example
 
 (def tree {:id 1
-             :lable "1"
-             :childs [{:id 2
-                       :label "2"
-                       :childs [{:id 12
-                                 :label "12"}]}
-                      {:id 3
-                       :label "3"}]})
+           :lable "1"
+           :childs [{:id 2
+                     :label "2"
+                     :childs [{:id 12
+                               :label "12"}]}
+                    {:id 3
+                     :label "3"}]})
 
 (layout-tree tree
              {:branch-fn :childs
