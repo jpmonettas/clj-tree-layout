@@ -2,20 +2,10 @@
   (:require [clj-tree-layout.core-specs]
             [clojure.string :as str]))
 
-(defn annotate [tree]
-  (let [x-numbers (atom {})
-        aux (fn aux [t depth]
-              (-> t
-                  (assoc :depth depth
-                         :depth-order (-> (swap! x-numbers update depth (fnil inc 0))
-                                          (get depth)))
-                  (update :childs (fn [chlds]
-                                    (mapv (fn [c]
-                                             (aux c (inc depth)))
-                                           chlds)))))]
-    (aux tree 0)))
-
-(defn tree-contours [t]
+(defn- contours
+  "Given a normalized tree returns a map with its right and left contours.
+  Contours are returned as a sequence of x coordinates from the root."
+  [t]
   (->> (tree-seq :childs :childs t)
        (group-by :depth)
        (map (fn [[l nodes]]
@@ -29,7 +19,11 @@
                      (update :right conj right)))
                {:left [] :right []})))
 
-(defn max-conflict [normal-path conflictive-path]
+(defn- max-conflict
+  "Given two sequences representing paths, returns the biggest conflict.
+  A conflict is how much you need to push the conflicting path right so conflictive path
+  is 100% at the right of normal-path at every level."
+  [normal-path conflictive-path]
   (let [conflicts (->> (map vector normal-path conflictive-path)
                        (filter (fn [[n c]] (< c n)))
                        (map (fn [[n c]] (- n c))))]
@@ -37,21 +31,28 @@
       (apply max conflicts)
       0)))
 
-(defn push-tree-left [t delta]
+(defn- push-tree-right
+  "Given a normalized tree and a delta, push every node :x position delta
+  to the right."
+  [t delta]
   (-> t
       (update :x #(+ % delta))
-      (update :childs (fn [chlds] (mapv #(push-tree-left % delta) chlds)))))
+      (update :childs (fn [chlds] (mapv #(push-tree-right % delta) chlds)))))
 
-(defn tilford-raingold [{:keys [width depth childs] :as node} h-gap]
+(defn- tilford-raingold
+  "Given a normalized tree and a horizontal gap, add :x coordinates to nodes
+  so the follow aesthetics rules as defined by Tilford and Raingold paper on
+  tidy trees layouts."
+  [{:keys [width depth childs] :as node} h-gap]
   (if (not-empty childs)
     (let [layout-childs (mapv #(tilford-raingold % h-gap) childs)
           pushed-childs (loop [pusheds [(first layout-childs)]
                                [c & r] (rest layout-childs)]
                           (if c
-                            (let [right-contour (:right (tree-contours (assoc node :x 0 :width 0 :childs pusheds)))
-                                  left-contour (:left (tree-contours (assoc node :x 0 :width 0 :childs [c])))
+                            (let [right-contour (:right (contours (assoc node :x 0 :width 0 :childs pusheds)))
+                                  left-contour (:left (contours (assoc node :x 0 :width 0 :childs [c])))
                                   delta (+ (max-conflict right-contour left-contour) h-gap)]
-                              (recur (conj pusheds (push-tree-left c delta)) r))
+                              (recur (conj pusheds (push-tree-right c delta)) r))
                             pusheds))
           firstc (first pushed-childs)
           lastc (last pushed-childs)
@@ -61,7 +62,10 @@
              :childs pushed-childs))
     (assoc node :x 0.0)))
 
-(defn layers-heights [t]
+(defn- layers-heights
+  "Given a normalized tree returns a map from depths to tree layer height.
+  The layer height is the height of the tallest node for the layer."
+  [t]
   (->> t
        (tree-seq :childs :childs)
        (group-by :depth)
@@ -69,7 +73,9 @@
               [d (apply max (map :height nodes))]))
        (into {})))
 
-(defn add-ys
+(defn- add-ys
+  "Given a normalized tree, add :y coordinates to every node so that
+  nodes at the same layers have the same :y coordinate."
   ([t layer-height v-gap] (add-ys t layer-height v-gap 0))
   ([t layer-height v-gap y]
    (let [lh (layer-height (:depth t))]
@@ -79,29 +85,65 @@
                           (->> childs
                                (mapv #(add-ys % layer-height v-gap (+ y lh v-gap))))))))))
 
-(defn build-internal-tree [t sizes childs-fn id-fn branch-fn]
+(defn- annotate
+  "Given a normalized tree add :depth and :depth-order to every node."
+  [t]
+  (let [x-numbers (atom {})
+        aux (fn aux [tr depth]
+              (-> tr
+                  (assoc :depth depth
+                         :depth-order (-> (swap! x-numbers update depth (fnil inc 0))
+                                          (get depth)))
+                  (update :childs (fn [chlds]
+                                    (mapv (fn [c]
+                                             (aux c (inc depth)))
+                                           chlds)))))]
+    (aux t 0)))
+
+(defn- normalize
+  "Given any tree, a childs-fn, id-fn, branch-fn and sizes build a normalized tree.
+  In the normalized tree every node is a map {:keys [:node-id :width :height :childs]}"
+  [t sizes childs-fn id-fn branch-fn]
   (let [[width height] (get sizes (id-fn t) [10 10])]
     {:node-id (id-fn t)
      :width width
      :height height
-     :childs (mapv #(build-internal-tree % sizes childs-fn id-fn branch-fn)
+     :childs (mapv #(normalize % sizes childs-fn id-fn branch-fn)
                    (childs-fn t))}))
 
-(defn ensure-all-positive [t h-gap]
-  (let [left-contour (:left (tree-contours t))
+(defn- ensure-all-positive
+  "Given a normalized positioned tree pushes it to the right until all nodes
+  :x coordinate is positive (> 0)."
+  [t h-gap]
+  (let [left-contour (:left (contours t))
         delta (+ (max-conflict (repeat 0) left-contour) h-gap)
-        pushed (push-tree-left t delta)]
+        pushed (push-tree-right t delta)]
     pushed))
 
-(defn dimensions [t]
+(defn- dimensions
+  "Given a normalized positioned tree returns a map from :node-id
+  to {:x :y :width :height} for every node."
+  [t]
   (reduce (fn [r n]
             (assoc r (:node-id n) (select-keys n [:x :y :width :height])))
           {} (tree-seq :childs :childs t)))
 
-(defn layout-tree [t {:keys [sizes childs-fn id-fn branch-fn h-gap v-gap]
+(defn layout-tree
+  "Given any tree and a map of directives, returns a map from node ids to
+  {:x :y :width :height} for every node.
+  Directives:
+
+     :sizes a map from node ids to [width height]
+     :childs-fn a fn that, given a branch node, returns a seq of its children.
+     :id-fn a fn that, given a node, returns anything that can be used as a node uniq id.
+     :branch-fn a fn that, given a node, returns true if can have children, even if it currently doesn't.
+     :h-gap an integer used as horizontal gap between nodes.
+     :v-gap an integer used as vertical gap between nodes."
+
+  [t {:keys [sizes childs-fn id-fn branch-fn h-gap v-gap]
                       :or {h-gap 5 v-gap 5}}]
   (let [internal-tree (-> t
-                          (build-internal-tree sizes childs-fn id-fn branch-fn)
+                          (normalize sizes childs-fn id-fn branch-fn)
                           annotate)
         layers-heights (layers-heights internal-tree)]
    (-> internal-tree
@@ -112,16 +154,15 @@
 
 (comment
 
-  (def tree {:id 1
-             :lable "1"
-             :childs [{:id 2
-                       :label "2"
-                       :childs [{:id 12
-                                 :label "12"}]}
-                      {:id 3
-                       :label "3"}]})
 
-  (layout-tree tree
+  (layout-tree {:id 1
+                :lable "1"
+                :childs [{:id 2
+                          :label "2"
+                          :childs [{:id 12
+                                    :label "12"}]}
+                         {:id 3
+                          :label "3"}]}
                {:branch-fn :childs
                 :childs-fn :childs
                 :id-fn :id})
@@ -134,20 +175,4 @@
                         "1" , [8 18]
                         "2" , [8 18]
                         "3" [8 18]}})
-
-
-  {"3"                                {:x 45, :y 30, :width 10, :height 10},
-   "(inc 25)"                         {:x 127.5, :y 15, :width 10, :height 10},
-   "4"                                {:x 60, :y 30, :width 10, :height 10},
-   "(+ 1 2 (- 3 4) (/ 5 6) (inc 25))" {:x 63.75, :y 0, :width 10, :height 10}                              ,
-   "(- 3 4)"                          {:x 45, :y 15, :width 10, :height 10},
-   "/"                                {:x 75, :y 30, :width 10, :height 10},
-   "-"                                {:x 30, :y 30, :width 10, :height 10},
-   "25"                               {:x 135, :y 30, :width 10, :height 10},
-   "5"                                {:x 90, :y 30, :width 10, :height 10},
-   "inc"                              {:x 120, :y 30, :width 10, :height 10},
-   "6"                                {:x 105, :y 30, :width 10, :height 10},
-   "1"                                {:x 15, :y 15, :width 10, :height 10},
-   "(/ 5 6)"                          {:x 90, :y 15, :width 10, :height 10},
-   "2"                                {:x 30, :y 15, :width 10, :height 10},
-   "+"                                {:x 0, :y 15, :width 10, :height 10}})
+  )
