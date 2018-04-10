@@ -4,7 +4,7 @@ A library for laying out tree nodes in 2D space for Clojure and ClojureScript.
 
 It features tidy tree representations as per [Tilford and Reingold](http://hci.stanford.edu/cs448b/f09/lectures/CS448B-20091021-GraphsAndTrees.pdf)
 
-This library doesn't contain any functionality to draw a tree on any canvas, just 
+This library doesn't contain any functionality to draw a tree on any canvas, just
 the calculations needed so you can draw it however you want.
 
 For libraries that uses this for drawing check :
@@ -15,10 +15,15 @@ For libraries that uses this for drawing check :
 
 ## Usage
 
+First
+
+```clojure
+(require '[clj-tree-layout.core :refer [layout-tree]])
+```
+
 Given a tree structure
 
 ```clojure
-;; For example
 
 (def tree {:id 1
            :lable "1"
@@ -44,11 +49,9 @@ Given a tree structure
 
 You can use the returning information to draw the tree however you want.
 
-No problem if you have a different tree structure 
+No problem if you have a different tree structure
 
 ```clojure
-(require '[clj-tree-layout.core :refer [layout-tree]])
-
 (def sexp-tree '(+ 1 2 (- 4 2) (/ 123 3) (inc 25)))
 
 (layout-tree sexp-tree
@@ -98,7 +101,7 @@ children.
 
 #### :id-fn
 
-Is a fn that, given a node, returns anything that can be used as 
+Is a fn that, given a node, returns anything that can be used as
 a node uniq id. Is used to return the result.
 
 #### :h-gap
