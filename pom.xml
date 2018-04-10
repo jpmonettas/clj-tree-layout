@@ -25,11 +25,25 @@
       </resource>
     </resources>
   </build>
-  
+
+  <distributionManagement>
+    <repository>
+      <id>clojars</id>
+      <name>Clojars repository</name>
+      <url>https://clojars.org/repo</url>
+    </repository>
+  </distributionManagement>
+
   <repositories>
     <repository>
       <id>clojars</id>
       <url>https://clojars.org/repo</url>
     </repository>
   </repositories>
+
+  <description>A library for laying out tree nodes in 2D space for Clojure and ClojureScript.</description>
+  <url>https://github.com/jpmonettas/clj-tree-layout</url>
+  <scm>
+    <url>https://github.com/jpmonettas/clj-tree-layout</url>
+  </scm>
 </project>

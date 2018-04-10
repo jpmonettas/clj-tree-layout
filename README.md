@@ -13,6 +13,8 @@ For libraries that uses this for drawing check :
 
 ## Installation
 
+[![Clojars Project](https://img.shields.io/clojars/v/clj-tree-layout.svg)](https://clojars.org/clj-tree-layout)
+
 ## Usage
 
 First
