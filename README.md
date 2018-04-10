@@ -59,7 +59,11 @@ No problem if you have a different tree structure
 (layout-tree sexp-tree
              {:branch-fn #(when (seq? %) %)
               :childs-fn #(when (seq? %) %)
-              :id-fn     str})
+              :id-fn     str
+              :sizes {"(+ 1 2 (- 4 2) (/ 123 3) (inc 25))" [43 10]
+                      "(- 4 2)"                            [15 10]
+                      "(/ 123 3)"                          [20 10]
+                      "(inc 25)"                           [16 10]}})
 
 ;;=>
 ;; {"3"                                {:x 45,    :y 30, :width 10, :height 10},
@@ -89,7 +93,7 @@ You can use that information to draw something like
 #### :sizes
 
 Is a map from node id to [width height]. Can be used to give `layout-tree` information about
-node sizes.
+node sizes. If no size info is given for a node [10 10] is assumed.
 
 #### :branch-fn
 
